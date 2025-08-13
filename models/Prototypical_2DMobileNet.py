@@ -6,7 +6,8 @@ import pytorch_lightning as pl
 from torchsummary import summary
 from evaluation import similarity
 from .MobiV3_CSI_model import MobileNetV3
-from pytorch_lightning.metrics import ConfusionMatrix
+# from pytorch_lightning.metrics import ConfusionMatrix
+from torchmetrics import ConfusionMatrix
 
 # from utils import custom_stack
 def custom_stack(x,time_dim=2,time_size=1800):

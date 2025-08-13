@@ -19,31 +19,63 @@ def run(args,setting):
     # torch.autograd.set_detect_anomaly(True)
     torch.cuda.empty_cache()
 
-    source_data = DataSet.create(name=args.dataset, root=args.root,roomid=args.train_roomid,
-                                 userid=args.train_userid,
-                                 location=args.train_location,orientation=args.train_orientation,
-                                 receiverid=args.train_receiverid,sampleid=args.train_sampleid,
-                                 data_shape=args.data_shape,chunk_size=args.chunk_size,num_shot=args.num_shot,
-                                 batch_size=args.batch_size,mode=args.mode)
+    # source_data = DataSet.create(name=args.dataset, root=args.root,roomid=args.train_roomid,
+    #                              userid=args.train_userid,
+    #                              location=args.train_location,orientation=args.train_orientation,
+    #                              receiverid=args.train_receiverid,sampleid=args.train_sampleid,
+    #                              data_shape=args.data_shape,chunk_size=args.chunk_size,num_shot=args.num_shot,
+    #                              batch_size=args.batch_size,mode=args.mode)
+    #
+    # # target_data = DataSet.create(name=args.dataset, root=args.root,roomid=args.test_roomid,
+    # #                              userid=args.test_userid,
+    # #                              location=args.test_location,orientation=args.test_orientation,
+    # #                              receiverid=args.test_receiverid,sampleid=args.test_sampleid,
+    # #                              data_shape=args.data_shape,chunk_size=args.chunk_size,num_shot=args.num_shot,
+    # #                              batch_size=args.batch_size,mode=args.mode)
+    #
+    #
+    # length=len(source_data)
+    # train_size =int(0.8*length)
+    # validate_size = length - train_size
+    # # print(length,train_size,validate_size)
+    # #first param is data set to be saperated, the second is list stating how many sets we want it to be.
+    # train_set,validate_set=torch.utils.data.random_split(source_data,[train_size,validate_size])
+    # # print(train_set,validate_set)
+    #
+    # tr_loader = DataLoader(dataset=train_set,collate_fn=lambda x:x,shuffle=False)
+    # te_loader = DataLoader(dataset=validate_set, collate_fn=lambda x:x,shuffle=False)
 
-    target_data = DataSet.create(name=args.dataset, root=args.root,roomid=args.test_roomid,
-                                 userid=args.test_userid,
-                                 location=args.test_location,orientation=args.test_orientation,
-                                 receiverid=args.test_receiverid,sampleid=args.test_sampleid,
-                                 data_shape=args.data_shape,chunk_size=args.chunk_size,num_shot=args.num_shot,
-                                 batch_size=args.batch_size,mode=args.mode)
+    # 1. 为训练创建一个独立的数据集实例
+    #    使用 args.train_... 参数
+    print("Creating training dataset...")
+    train_set = DataSet.create(name=args.dataset, root=args.root, roomid=args.train_roomid,
+                               userid=args.train_userid,
+                               location=args.train_location, orientation=args.train_orientation,
+                               receiverid=args.train_receiverid, sampleid=args.train_sampleid,
+                               data_shape=args.data_shape, chunk_size=args.chunk_size, num_shot=args.num_shot,
+                               batch_size=args.batch_size, mode=args.mode)
 
+    # 2. 为验证/测试创建一个独立的数据集实例
+    #    激活你之前注释掉的代码，并确保它使用了不同的数据源（例如 args.test_...）
+    #    这是为了确保训练集和验证集没有数据重叠
+    print("Creating validation dataset...")
+    validate_set = DataSet.create(name=args.dataset, root=args.root, roomid=args.test_roomid,
+                                  userid=args.test_userid,
+                                  location=args.test_location, orientation=args.test_orientation,
+                                  receiverid=args.test_receiverid, sampleid=args.test_sampleid,
+                                  data_shape=args.data_shape, chunk_size=args.chunk_size, num_shot=args.num_shot,
+                                  batch_size=args.batch_size, mode=args.mode)
 
-    length=len(source_data)
-    train_size =int(0.8*length)
-    validate_size = length - train_size
-    # print(length,train_size,validate_size)
-    #first param is data set to be saperated, the second is list stating how many sets we want it to be.
-    train_set,validate_set=torch.utils.data.random_split(source_data,[train_size,validate_size])
-    # print(train_set,validate_set)
+    # 3. 移除错误的 random_split 逻辑 (这两行必须删除)
+    # length=len(source_data)
+    # train_size =int(0.8*length)
+    # validate_size = length - train_size
+    # train_set,validate_set=torch.utils.data.random_split(source_data,[train_size,validate_size])
 
-    tr_loader = DataLoader(dataset=train_set,collate_fn=lambda x:x)
-    te_loader = DataLoader(dataset=validate_set, collate_fn=lambda x:x)
+    # 4. 现在，使用我们独立创建的 train_set 和 validate_set 来创建 DataLoader
+    #    shuffle=False 对于可迭代数据集是必须的，你已经正确设置了
+    tr_loader = DataLoader(dataset=train_set, collate_fn=lambda x: x, shuffle=False)
+    te_loader = DataLoader(dataset=validate_set, collate_fn=lambda x: x, shuffle=False)
 
     data_model_match = True  # Whether the data format matches the model
     if args.model_name == 'PrototypicalResNet':
@@ -99,10 +131,14 @@ def run(args,setting):
     if data_model_match:
         from pytorch_lightning.callbacks import ModelCheckpoint
         checkpoint_callback = ModelCheckpoint( monitor='GesVa_loss', save_last =False, save_top_k =0)
-        trainer = pl.Trainer(callbacks=[checkpoint_callback,],log_every_n_steps=1,max_epochs=args.max_epochs,gpus=1)   # precision = 16
+        trainer = pl.Trainer(
+            callbacks=[checkpoint_callback,],
+            log_every_n_steps=1,
+            max_epochs=args.max_epochs
+        )   # precision = 16
         trainer.fit(model,tr_loader,te_loader)
 
-        # print([x.shape for x in model.comfmat_metric_all])
+        print([x.shape for x in model.comfmat_metric_all])
         cm_tensor_type = torch.stack(model.comfmat_metric_all)
         cm_numpy_type = cm_tensor_type.numpy()
         # cm = np.array(model.comfmat_metric_all)

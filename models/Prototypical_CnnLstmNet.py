@@ -6,7 +6,7 @@ import pytorch_lightning as pl
 from torchsummary import summary
 from evaluation import similarity
 from .ResNet_CSI_model import ResNet_CSI,BasicBlock,Bottleneck
-from pytorch_lightning.metrics import ConfusionMatrix
+from torchmetrics import ConfusionMatrix
 
 
 class RawCSIEncoder(nn.Module):

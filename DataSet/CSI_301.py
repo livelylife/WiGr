@@ -9,7 +9,7 @@ import torch
 import os
 import itertools,functools
 from torch.utils.data import TensorDataset, DataLoader
-from CustomDataset import CustomIterDataset
+from DataSet.CustomDataset import CustomIterDataset
 
 
 def split_array_bychunk(array, chunksize, include_residual=True):
@@ -65,18 +65,26 @@ class CSI_301(CustomIterDataset):
         self.mode = mode
 
         self.group = zarr.open_group(root.as_posix(), mode="r")
-        # if self.mode == "amplitude":
-        #     self.amp = self.group.csi_data_amp[:]
-        self.gesture = self.group.csi_label_act[:]  # 动作 6个 0~5
-        self.room_label = self.group.csi_label_env[:]  # 房间 0,1
-        self.location = self.group.csi_label_loc[:]  # 站位 0,1  0,1,2
-        self.userid = self.group.csi_label_user[:]  # 人 0,1,2,3,4
+        print("Inspecting Zarr group contents:")
+        print(self.group.tree())
+        # 检查 'csi_data_amp' 是否存在，如果存在则加载
+        if 'csi_data_amp' in self.group:
+            self.amp = self.group['csi_data_amp'][:]
+        else:
+            # 如果没有振幅数据，可以抛出错误或设置一个默认值
+            raise AttributeError("Dataset 'csi_data_amp' not found in the Zarr group.")
+
+        # 使用字典式访问加载所有标签
+        self.gesture = self.group['csi_label_act'][:]  # 动作 6个 0~5
+        self.room_label = self.group['csi_label_env'][:]  # 房间 0,1
+        self.location = self.group['csi_label_loc'][:]  # 站位 0,1  0,1,2
+        self.userid = self.group['csi_label_user'][:]  # 人 0,1,2,3,4
 
         self.total_samples = len( self.gesture)
-        self.select = np.ones(self.total_samples, dtype=np.bool)
-        self.room_select = np.ones(self.total_samples, dtype=np.bool)
-        self.user_select = np.ones(self.total_samples, dtype=np.bool)
-        self.loc_select = np.ones(self.total_samples, dtype=np.bool)
+        self.select = np.ones(self.total_samples, dtype=bool)
+        self.room_select = np.ones(self.total_samples, dtype=bool)
+        self.user_select = np.ones(self.total_samples, dtype=bool)
+        self.loc_select = np.ones(self.total_samples, dtype=bool)
 
         index_temp = np.arange(self.total_samples)
 
@@ -103,23 +111,29 @@ class CSI_301(CustomIterDataset):
         self.min_num_sample_class = min(num_sample_per_class)  # find the minimal number of samples of all classes
         self.num_batch = self.min_num_sample_class // self.batch_size
 
+        if self.batch_size <= self.num_shot:
+            raise ValueError(
+                f"Configuration Error: batch_size ({self.batch_size}) must be strictly greater than "
+                f"num_shot ({self.num_shot}) to create a non-empty query set."
+            )
+
     def get_item(self, sample_index):
         if self.mode is not None:
             if self.mode == 'phase':
                 pha_sample = self.group.csi_data_pha[sample_index]
                 sample = pha_sample.astype(np.float32)  # shape [1800,3,114]
             elif self.mode == 'amplitude':
-                amp_sample = self.group.csi_data_amp[sample_index]
+                amp_sample = self.amp[sample_index]
                 # amp_sample = self.amp[sample_index]
                 sample = amp_sample.astype(np.float32)  # shape [1800,3,114]
             else:
-                amp_sample = self.group.csi_data_amp[sample_index]
+                amp_sample = self.amp[sample_index]
                 pha_sample = self.group.csi_data_pha[sample_index]
                 amp_sample = amp_sample.astype(np.float32)  # shape [1800,3,114]
                 pha_sample = pha_sample.astype(np.float32)  # shape [1800,3,114]
                 sample = np.concatenate((amp_sample, pha_sample), axis=2)   # shape [1800,3,228]
         else:
-            amp_sample = self.group.csi_data_amp[sample_index]
+            amp_sample = self.amp[sample_index]
             pha_sample = self.group.csi_data_pha[sample_index]
             amp_sample = amp_sample.astype(np.float32)  # shape [1800,3,114]
             pha_sample = pha_sample.astype(np.float32)  # shape [1800,3,114]

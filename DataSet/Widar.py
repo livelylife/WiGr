@@ -7,7 +7,7 @@ import torch
 import os
 import itertools,functools
 from torch.utils.data import TensorDataset, DataLoader
-from CustomDataset import CustomIterDataset
+from DataSet.CustomDataset import CustomIterDataset
 
 def load_npy_from_bytes(bytes_data):
     return np.load(io.BytesIO(bytes_data))

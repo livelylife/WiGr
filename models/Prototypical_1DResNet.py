@@ -1,12 +1,12 @@
 import torch
 from torch import nn
-from torch.nn.utils.rnn import pad_packed_sequence, pack_sequence
-import random
+# from torch.nn.utils.rnn import pad_packed_sequence, pack_sequence
+import torchmetrics
 import pytorch_lightning as pl
-from torchsummary import summary
+# from torchsummary import summary
 from evaluation import similarity
 from .ResNet_CSI_model import ResNet_CSI,BasicBlock,Bottleneck
-from pytorch_lightning.metrics import ConfusionMatrix
+from torchmetrics import ConfusionMatrix
 from torchsummary import summary
 
 
@@ -41,7 +41,7 @@ class LinearClassifier(nn.Module):
 
 class PrototypicalResNet(pl.LightningModule):
     def __init__(self,layers,strides,inchannel=52,groups=1,align=False,
-                 metric_method="Euclidean",k_shot=1,num_class_linear_flag=None,combine=False):
+                 metric_method="Euclidean",k_shot=1,num_class_linear_flag=None,combine=False,num_metric_classes=6):
         """
         :param layers: this is a list, which define the number of types of layers
         :param strides:  the convolution strides of layers
@@ -66,22 +66,25 @@ class PrototypicalResNet(pl.LightningModule):
         self.k_shot = k_shot
         self.combine = combine  # we need to combine the linear or not
         self.num_class_linear_flag = num_class_linear_flag  # only using when we add the linear classifier
+        self.num_metric_classes = num_metric_classes
 
         self.ResNet_encoder = ResNet_CSI(block=BasicBlock, layers=self.layers,strides=self.strides, inchannel=self.inchannel,groups=self.groups) # output shape [feature_dim, length]
         self.feature_dim = self.ResNet_encoder.out_dim
 
         if self.num_class_linear_flag is not None:
-            self.linear_classifier = LinearClassifier(in_channel=self.feature_dim,num_class=self.num_class_linear_flag)
-            self.train_acc_linear = pl.metrics.Accuracy()
-            self.val_acc_linear = pl.metrics.Accuracy()
+            self.linear_classifier = LinearClassifier(in_channel=self.feature_dim,num_class=self.num_metric_classes)
+            self.train_acc_linear = torchmetrics.Accuracy(task="multiclass", num_classes=self.num_metric_classes)
+            self.val_acc_linear = torchmetrics.Accuracy(task="multiclass", num_classes=self.num_metric_classes)
 
         self.similarity_metric = similarity.Pair_metric(metric_method=self.metric_method,inchannel=self.feature_dim * 2)
         self.similarity = similarity.Pair_metric(metric_method="cosine")
         # for calculating the cosine distance between support set feature and linear layer weights W
 
         self.criterion = nn.CrossEntropyLoss(size_average=False)
-        self.train_acc = pl.metrics.Accuracy()  # the training accuracy of metric classifier
-        self.val_acc = pl.metrics.Accuracy()  # the validation accuracy of metric classifier
+        # self.train_acc = torchmetrics.Accuracy(task="multiclass", num_classes=self.num_class_linear_flag)  # the training accuracy of metric classifier
+        # self.val_acc = torchmetrics.Accuracy(task="multiclass", num_classes=self.num_class_linear_flag)  # the validation accuracy of metric classifier
+        self.train_acc = torchmetrics.Accuracy(task="multiclass", num_classes=self.num_metric_classes)
+        self.val_acc = torchmetrics.Accuracy(task="multiclass", num_classes=self.num_metric_classes)
 
         self.confmat_linear_all = []  # storage all the confusion matrix of linear classifier
         self.comfmat_metric_all = []  # storage all the confusion matrix of metric classifier
@@ -239,9 +242,9 @@ class PrototypicalResNet(pl.LightningModule):
         return loss
 
     def on_validation_epoch_start(self):
-        self.confmat_metric = ConfusionMatrix(num_classes=6)
+        self.confmat_metric = ConfusionMatrix(task="multiclass", num_classes=6)
         if self.num_class_linear_flag is not None:
-            self.confmat_linear = ConfusionMatrix(num_classes=6)
+            self.confmat_linear = ConfusionMatrix(num_classes=6,task="multiclass")
 
     def validation_epoch_end(self, val_step_outputs):
         self.log('GesVa_Acc', self.val_acc.compute())

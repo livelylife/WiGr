@@ -90,7 +90,7 @@ def run(args):
     if data_model_match:
         from pytorch_lightning.callbacks import ModelCheckpoint
         checkpoint_callback = ModelCheckpoint( monitor='GesVa_loss', save_last =False, save_top_k =0)
-        trainer = pl.Trainer(callbacks=[checkpoint_callback,],log_every_n_steps=1,max_epochs=args.max_epochs,gpus=1)   # precision = 16
+        trainer = pl.Trainer(callbacks=[checkpoint_callback,],log_every_n_steps=1,max_epochs=args.max_epochs)   # precision = 16
         trainer.fit(model,tr_loader,te_loader)
         # print(trainer.logger.log_dir)
         # print(len(model.confmat_linear_all)
